@@ -1,0 +1,4 @@
+node_modules/
+cases/*/dist/
+dist/
+.DS_Store

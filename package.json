@@ -1,0 +1,31 @@
+{
+  "name": "vite-cell-proof-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node scripts/build-readable.mjs",
+    "dev": "vite cases/esm-namespace-node-builtin",
+    "dev:bundle": "vite cases/esm-namespace-node-builtin --experimentalBundle",
+    "proof:build": "node scripts/build-readable.mjs --proof",
+    "proof:dev": "node scripts/dev-readable.mjs --expect fail",
+    "proof:dev:bundle": "node scripts/dev-readable.mjs --bundled --expect fail",
+    "proof:matrix": "node scripts/matrix-readable.mjs",
+    "proof:matrix:build": "node scripts/matrix-readable.mjs --mode build",
+    "proof:matrix:dev": "node scripts/matrix-readable.mjs --mode dev",
+    "proof:matrix:dev:bundle": "node scripts/matrix-readable.mjs --mode bundledDev",
+    "vp:build": "vp build",
+    "vp:dev": "vp dev cases/esm-namespace-node-builtin",
+    "vp:dev:bundle": "vp dev cases/esm-namespace-node-builtin --experimentalBundle"
+  },
+  "keywords": [],
+  "author": "Jason Kuhrt <jasonkuhrt@me.com> (https://kuhrt.me/)",
+  "license": "ISC",
+  "dependencies": {
+    "vite": "^8.0.8",
+    "vite-plus": "^0.1.16"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
+}
