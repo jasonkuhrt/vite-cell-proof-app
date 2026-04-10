@@ -1,213 +1,198 @@
 # Vite Cell Surface Proof Matrix
 
-This repo isolates one question:
+Minimal repro repo for one Vite 8 question: can Full Bundle Mode make dev behave like production build for a mixed public surface that contains both browser-safe and Node-only branches?
 
-* Can a client import `{ A }` from `../lib/a`, call `A.Browser.thing()`, keep `A.Node` in the same public namespace, and rely on modern Vite to keep the Node branch out of the browser?
+## Grounding
 
-There is intentionally no `vite.config.*` file anywhere in this repo. The point is to test module-surface behavior directly, not to hide the problem behind config.
+This repo is a small lab for Vite 8, not an app template. Each case is a tiny browser app plus a tiny library surface under `lib/a/`.
 
-The shape under test is:
+The library surface changes shape across cases:
 
-```js
-// src/main.js
-import { A } from '../lib/a'
+* namespace barrel
+* flat barrel
+* runtime object aggregate
 
-A.Browser.thing()
+The branch content also changes:
+
+* browser-safe unused branch
+* unused branch that imports `node:fs`
+
+## Problem
+
+Production build tree-shaking has handled many of these patterns for years. The interesting question is dev.
+
+Vite 8 introduced Full Bundle Mode, which in theory should move dev closer to production bundling. This repo checks whether that new mode is enough for mixed public surfaces, or whether some shapes still break.
+
+## Solution
+
+This repo keeps the experiment small and explicit:
+
+* no `vite.config.*`
+* five tiny case apps under `cases/`
+* scripted checks for production build, plain dev, and bundled dev
+* real browser verification for dev via Playwright
+
+The point is to separate three questions cleanly:
+
+1. Is our app surface bad?
+2. Is our Vite config bad?
+3. Is bundled dev itself still limited here?
+
+## Quickstart
+
+```sh
+npm install
+npm run repro
 ```
 
+That runs the full matrix:
+
+* production build
+* plain dev
+* bundled dev via `vite --experimentalBundle`
+
+If you only want the main failing case:
+
+```sh
+npm run repro:case:build
+npm run repro:case:dev
+npm run repro:case:bundled-dev
+```
+
+## Concepts
+
+The key concept in this repo is the **public surface**. That is the browser-visible API shape the consumer imports.
+
+A **namespace barrel** means the consumer imports a namespace object created entirely through ESM re-exports:
+
 ```js
-// lib/a/index.js
 export * as A from './index.mod.js'
 ```
 
+A **flat barrel** means the consumer imports named exports re-exported from multiple modules:
+
 ```js
-// lib/a/index.mod.js
-export * as Browser from './browser.js'
-export * as Node from './node.js'
+export { thing } from './browser.js'
+export { getSecret } from './node.js'
 ```
 
-## Current Conclusion
+A **runtime object aggregate** means the library builds the public surface at runtime:
 
-The current answer is:
+```js
+const A = { Browser, Node }
+export { A }
+```
 
-* this is not a config artifact; there is no Vite config in this repo
-* ESM namespaces and flat ESM barrels behave the same in these tests
-* the real dev seam is an otherwise-unused branch that imports a browser-incompatible Node builtin
-* browser-safe unused branches work
-* runtime object aggregation is a real app-surface bug because it even breaks production tree-shaking
+An **unused Node builtin branch** means the browser consumer does not call that branch, but the branch still imports a Node builtin like `node:fs`.
 
-So the seam is not "ESM namespaces are bad." The seam is:
-
-* unused Node-builtin branches still break dev and bundled dev
-* runtime object aggregation breaks prod too
+That distinction matters because this repo is testing whether Vite can eliminate the bad branch early enough in dev, not whether the branch is valid browser code by itself.
 
 ## Cases
 
-These are the concrete case apps under [`cases/`](/Users/jasonkuhrt/vite-cell-proof-app/cases):
+| Case | Surface | Unused branch | Build | Plain dev | Bundled dev |
+| --- | --- | --- | --- | --- | --- |
+| `namespace-browser-safe` | namespace barrel | browser-safe | pass | pass | pass |
+| `namespace-node-builtin` | namespace barrel | `node:fs` | pass | fail | fail |
+| `barrel-browser-safe` | flat barrel | browser-safe | pass | pass | pass |
+| `barrel-node-builtin` | flat barrel | `node:fs` | pass | fail | fail |
+| `runtime-object-node-builtin` | runtime object aggregate | `node:fs` | fail | fail | fail |
 
-| Case | Shape | Build | Dev | Bundled Dev |
-| --- | --- | --- | --- | --- |
-| `esm-namespace-node-builtin` | `index -> index.mod -> Browser/Node`, unused Node branch imports `node:fs` | pass | fail | fail |
-| `esm-namespace-browser-safe-unused` | same namespace shape, unused branch is browser-safe | pass | pass | pass |
-| `flat-barrel-node-builtin` | flat ESM barrel, unused export imports `node:fs` | pass | fail | fail |
-| `flat-barrel-browser-safe-unused` | flat ESM barrel, unused export is browser-safe | pass | pass | pass |
-| `runtime-object-node-builtin` | `const A = { Browser, Node }` runtime aggregate | fail | fail | fail |
+## Usage
 
-That matrix is the key result:
+Run the whole matrix:
 
-* flat barrels and ESM namespaces behave the same
-* browser-safe unused branches are fine
-* unused branches with Node builtins are where dev and bundled dev break
-* runtime object aggregates are a separate production failure
+```sh
+npm run repro
+```
 
-## Why This App Exists
+Run one mode across all cases:
 
-This is testing the exact thesis behind a mixed cell namespace:
+```sh
+npm run repro:build
+npm run repro:dev
+npm run repro:bundled-dev
+```
 
-* one public import surface
-* browser-safe and node-only branches coexisting under it
-* no deep import required for the browser consumer
-* build already known-good
-* dev is the real question
+Run the main motivating case only:
 
-## Why This Is Plausible To Test Now
+```sh
+npm run repro:case:build
+npm run repro:case:dev
+npm run repro:case:bundled-dev
+```
 
-This repo exists because Vite 8 introduced a new dev capability that, in theory, could close the gap between production tree-shaking and development module serving.
+Open the default failing case in a manual server:
 
-From the official Vite 8 announcement:
+```sh
+npm run serve
+npm run serve:bundled
+```
+
+## Results
+
+Current takeaways:
+
+* This is not a config artifact. There is no Vite config in this repo.
+* This is not specifically an ESM namespace problem. Namespace barrels and flat barrels behave the same here.
+* Browser-safe unused branches are fine in both plain dev and bundled dev.
+* An unused branch that imports `node:fs` still breaks both plain dev and bundled dev.
+* Runtime object aggregation is a separate app-surface bug because it leaks the Node branch into production build output too.
+
+So the important seam is:
+
+* bundled dev still does not match production build when an otherwise-unused pure-ESM branch imports a browser-incompatible Node builtin
+
+## Upstream Context
+
+Why this repo exists at all:
 
 > "Full Bundle Mode" (experimental): This mode bundles modules during development, similar to production builds.
 
 Source:
 
-* [vite.dev/blog/announcing-vite8](https://vite.dev/blog/announcing-vite8)
-* local ref: [/Users/jasonkuhrt/repo-references/vite/docs/blog/announcing-vite8.md](/Users/jasonkuhrt/repo-references/vite/docs/blog/announcing-vite8.md#L124)
+* [Vite 8 announcement](https://vite.dev/blog/announcing-vite8)
 
-The Vite "Why" guide explains why this matters:
+The exact CLI surface under test is:
 
-> Rolldown changes that. Since exceptionally large codebases can experience slow page loads due to the high number of unbundled network requests, the team is exploring a mode where the dev server bundles code similarly to production, reducing network overhead.
+* `vite --experimentalBundle`
 
-Source:
+Relevant upstream trail:
 
-* [vite.dev/guide/why](https://vite.dev/guide/why)
-* local ref: [/Users/jasonkuhrt/repo-references/vite/docs/guide/why.md](/Users/jasonkuhrt/repo-references/vite/docs/guide/why.md#L54)
+* [Full Bundle Mode landing PR: vitejs/vite#21235](https://github.com/vitejs/vite/pull/21235)
+* [Follow-up fix: vitejs/vite#21296](https://github.com/vitejs/vite/pull/21296)
+* [Bundled-dev rough edge: vitejs/vite#21884](https://github.com/vitejs/vite/issues/21884)
+* [Tree-shaking issue in related barrel shapes: vitejs/vite#21966](https://github.com/vitejs/vite/issues/21966)
+* [Maintainer statement for another unsupported bundled-dev setup: vitejs/vite#22012](https://github.com/vitejs/vite/issues/22012)
 
-And the exact CLI surface we are leveraging is:
+Important nuance:
 
-> `--experimentalBundle` `[boolean] use experimental full bundle mode (this is highly experimental)`
+* this repo proves behavior
+* it does not yet prove intent
 
-Source:
+At the time of writing, this repo has not found an exact existing Vite issue for the specific seam reproduced here.
 
-* local ref: [/Users/jasonkuhrt/repo-references/vite/packages/vite/src/node/cli.ts](/Users/jasonkuhrt/repo-references/vite/packages/vite/src/node/cli.ts#L203)
+## Glossary
 
-So the theory under test is not vague "modern bundling." It is specifically:
+#### bundled dev
 
-* Vite 8 Full Bundle Mode
-* enabled by Rolldown-backed dev bundling
-* exposed today as `vite --experimentalBundle`
-* with the hope that dev could behave more like production for a mixed namespace such as `A.Browser` and `A.Node`
+Vite 8 Full Bundle Mode, currently exercised here via `vite --experimentalBundle`.
 
-## Feature Trail
+#### flat barrel
 
-This is the concrete upstream trail for the exact feature under test.
+A public module that re-exports named values directly from other modules.
 
-Landing points:
+#### namespace barrel
 
-* changelog entry:
-  [CHANGELOG.md](/Users/jasonkuhrt/repo-references/vite/packages/vite/CHANGELOG.md#L182)
-  and web:
-  [github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md#L182](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md#L182)
-* landing PR:
-  [vitejs/vite#21235](https://github.com/vitejs/vite/pull/21235)
-* merge commit:
-  [83d8c99753d8bd5c1ea9b7a00e6998c865dad4e2](https://github.com/vitejs/vite/commit/83d8c99753d8bd5c1ea9b7a00e6998c865dad4e2)
+A public module that exposes a namespace entirely through ESM re-exports.
 
-The PR is explicit about scope:
+#### plain dev
 
-> This PR adds highly experimental full bundle mode.
->
-> This is not expected to be used yet, but rather to make the full bundle mode development easier.
+Vite's default native-ESM dev server mode.
 
-Source:
+#### public surface
 
-* [vitejs/vite#21235](https://github.com/vitejs/vite/pull/21235)
+The API shape that the browser consumer imports.
 
-The landing commit is substantial, not a docs-only tease:
+#### runtime object aggregate
 
-* 36 touched files
-* 2,428 changed lines
-* includes:
-  * `packages/vite/src/node/server/environments/fullBundleEnvironment.ts`
-  * `packages/vite/src/node/cli.ts`
-  * `packages/vite/src/node/config.ts`
-  * `playground/hmr-full-bundle-mode/*`
-
-Immediate follow-up:
-
-* [vitejs/vite#21296](https://github.com/vitejs/vite/pull/21296)
-  `fix: unreachable error when building with experimental.bundledDev is enabled`
-
-Relevant follow-up community issues after landing:
-
-* [vitejs/vite#21966](https://github.com/vitejs/vite/issues/21966)
-  `Tree-shaking fails for barrel files that combine inline exports with re-exports`
-* [vitejs/vite#22012](https://github.com/vitejs/vite/issues/22012)
-  `experimental.bundledDev breaks non-bundled environments in multi-environment setups`
-* [vitejs/vite#21884](https://github.com/vitejs/vite/issues/21884)
-  `Vite 8 regression: DevBundle crashes...`
-
-That trail matters because it tells us this app is testing a real upstream feature with real user pressure and real post-landing rough edges, not an imagined capability.
-
-## Tracked Needs / Seams
-
-This is the working map for our specific use case.
-
-| Need                                                                                                                        | Status                             | Evidence                                                                                                       | Upstream                                                                                                                                                                                           |
-| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Does plain dev still choke on an unused branch that imports a Node builtin?                                                | Yes                                | `npm run proof:dev` shows a real browser `pageerror` on `node:fs.readFileSync`                                 | Baseline limitation of native ESM dev                                                                                                                                                              |
-| Does bundled dev fix that same case?                                                                                        | No                                 | `npm run proof:dev:bundle` fails before page render with `MISSING_EXPORT` for `node:fs.readFileSync`           | No exact upstream issue found yet; likely needs a new focused report                                                                                                                               |
-| Is this specifically an ESM namespace problem?                                                                              | No                                 | `flat-barrel-node-builtin` fails the same way as `esm-namespace-node-builtin`                                  | No exact upstream issue found yet; likely needs a new focused report                                                                                                                               |
-| Is this specifically a Node-builtin-in-unused-branch problem?                                                               | Looks like yes                     | both browser-safe cases pass in plain dev and bundled dev                                                       | No exact upstream issue found yet; likely needs a new focused report                                                                                                                               |
-| Is runtime object aggregation still a bad public surface?                                                                   | Yes                                | `runtime-object-node-builtin` leaks `readFileSync` into the prod bundle                                         | Related shape class: [vitejs/vite#21966](https://github.com/vitejs/vite/issues/21966)                                                                                                              |
-| Is bundled dev still rough beyond our exact case?                                                                           | Yes                                | upstream reports after landing                                                                                 | [vitejs/vite#21296](https://github.com/vitejs/vite/pull/21296), [vitejs/vite#21884](https://github.com/vitejs/vite/issues/21884), [vitejs/vite#22012](https://github.com/vitejs/vite/issues/22012) |
-
-Notes on those seams:
-
-* The important negative result is narrower than "bundled dev is useless." In this proof matrix, bundled dev handles unused browser-safe branches, but hard-fails when the unused branch imports a browser-incompatible Node builtin.
-* That means the seam is not just "namespace exports." The seam appears to involve bundled-dev graph processing plus browser-externalized Node builtins before unreachable-branch elimination finishes.
-* Runtime object aggregation is its own bad app-surface pattern. It leaks the Node branch into prod even before we get to the bundled-dev question.
-
-## References
-
-Official Vite references:
-
-* Vite 8 announcement, Full Bundle Mode is still experimental:
-  [vite.dev/blog/announcing-vite8](https://vite.dev/blog/announcing-vite8)
-* Vite “Why” guide, full bundle mode is still an explored direction:
-  [vite.dev/guide/why](https://vite.dev/guide/why)
-* Vite changelog entry calling full bundle mode “highly experimental”:
-  [github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md)
-
-Official Vite+ references:
-
-* Vite+ README says `vp dev` runs Vite’s native ESM dev server:
-  [github.com/voidzero-dev/vite-plus/blob/main/README.md](https://github.com/voidzero-dev/vite-plus/blob/main/README.md)
-* Vite+ CLI agent docs say `vp dev` works the same as Vite:
-  [github.com/voidzero-dev/vite-plus/blob/main/packages/cli/AGENTS.md](https://github.com/voidzero-dev/vite-plus/blob/main/packages/cli/AGENTS.md)
-
-Local source references used during this spike:
-
-* `/Users/jasonkuhrt/repo-references/vite`
-* `/Users/jasonkuhrt/repo-references/vite-plus`
-
-## Commands
-
-```sh
-npm run proof:build
-npm run proof:dev
-npm run proof:dev:bundle
-npm run proof:matrix
-npm run proof:matrix:build
-npm run proof:matrix:dev
-npm run proof:matrix:dev:bundle
-```
+A public surface created by building an object at runtime instead of using pure ESM re-exports.

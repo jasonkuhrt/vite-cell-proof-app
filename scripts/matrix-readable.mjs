@@ -70,6 +70,12 @@ const checks = {
     ]),
 }
 
+const checkLabel = {
+  build: 'build',
+  dev: 'dev',
+  bundledDev: 'bundled-dev',
+}
+
 const order =
   mode === 'all'
     ? ['build', 'dev', 'bundledDev']
@@ -99,7 +105,7 @@ for (const row of summary) {
   console.log(
     [
       row.caseName.padEnd(32),
-      row.checkName.padEnd(10),
+      checkLabel[row.checkName].padEnd(12),
       `expected=${row.expected}`.padEnd(16),
       row.ok ? 'ok' : 'failed',
     ].join('  '),

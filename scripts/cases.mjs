@@ -1,11 +1,21 @@
 import path from 'node:path'
 
-export const defaultCaseName = 'esm-namespace-node-builtin'
+export const defaultCaseName = 'namespace-node-builtin'
 
 export const caseMatrix = {
-  'esm-namespace-node-builtin': {
-    description: 'Pure ESM namespace surface with unused Node builtin branch',
-    dir: path.resolve('cases/esm-namespace-node-builtin'),
+  'namespace-browser-safe': {
+    description: 'Namespace barrel with an unused browser-safe branch',
+    dir: path.resolve('cases/namespace-browser-safe'),
+    forbiddenTokens: ['browser-safe-unused-marker'],
+    expectations: {
+      build: 'pass',
+      dev: 'pass',
+      bundledDev: 'pass',
+    },
+  },
+  'namespace-node-builtin': {
+    description: 'Namespace barrel with an unused Node builtin branch',
+    dir: path.resolve('cases/namespace-node-builtin'),
     forbiddenTokens: [
       'readFileSync',
       'node:fs',
@@ -18,9 +28,9 @@ export const caseMatrix = {
       bundledDev: 'fail',
     },
   },
-  'esm-namespace-browser-safe-unused': {
-    description: 'Pure ESM namespace surface with unused browser-safe branch',
-    dir: path.resolve('cases/esm-namespace-browser-safe-unused'),
+  'barrel-browser-safe': {
+    description: 'Flat barrel with an unused browser-safe export',
+    dir: path.resolve('cases/barrel-browser-safe'),
     forbiddenTokens: ['browser-safe-unused-marker'],
     expectations: {
       build: 'pass',
@@ -28,9 +38,9 @@ export const caseMatrix = {
       bundledDev: 'pass',
     },
   },
-  'flat-barrel-node-builtin': {
-    description: 'Flat ESM barrel with unused Node builtin export',
-    dir: path.resolve('cases/flat-barrel-node-builtin'),
+  'barrel-node-builtin': {
+    description: 'Flat barrel with an unused Node builtin export',
+    dir: path.resolve('cases/barrel-node-builtin'),
     forbiddenTokens: [
       'readFileSync',
       'node:fs',
@@ -41,20 +51,10 @@ export const caseMatrix = {
       build: 'pass',
       dev: 'fail',
       bundledDev: 'fail',
-    },
-  },
-  'flat-barrel-browser-safe-unused': {
-    description: 'Flat ESM barrel with unused browser-safe export',
-    dir: path.resolve('cases/flat-barrel-browser-safe-unused'),
-    forbiddenTokens: ['browser-safe-unused-marker'],
-    expectations: {
-      build: 'pass',
-      dev: 'pass',
-      bundledDev: 'pass',
     },
   },
   'runtime-object-node-builtin': {
-    description: 'Runtime object aggregate with Node builtin branch',
+    description: 'Runtime object aggregate with a Node builtin branch',
     dir: path.resolve('cases/runtime-object-node-builtin'),
     forbiddenTokens: [
       'readFileSync',
