@@ -1,10 +1,20 @@
 # Vite Cell Surface Proof Matrix
 
-Minimal repro repo for one Vite 8 question: can Full Bundle Mode make dev behave like production build for a mixed public surface that contains both browser-safe and Node-only branches?
+Minimal repro repo for two related Vite 8 questions:
+
+1. Can Full Bundle Mode make dev behave like production build for a mixed public surface that contains both browser-safe and Node-only branches?
+2. Can a real library package avoid that seam by using package export conditions to route browser and Node consumers to different files up front?
 
 ## Grounding
 
-This repo is a small lab for Vite 8, not an app template. Each case is a tiny browser app plus a tiny library surface under `lib/a/`.
+This repo is a small lab for Vite 8, not an app template.
+
+It has two experiment families:
+
+* `cases/`: same-repo surface-shape experiments
+* `apps/package-conditions-app` + `packages/conditional-surface-lib`: package-boundary export-condition experiment
+
+Each experiment stays tiny on purpose.
 
 The library surface changes shape across cases:
 
@@ -25,10 +35,11 @@ Vite 8 introduced Full Bundle Mode, which in theory should move dev closer to pr
 
 ## Solution
 
-This repo keeps the experiment small and explicit:
+This repo keeps the experiments small and explicit:
 
 * no `vite.config.*`
 * five tiny case apps under `cases/`
+* one tiny workspace app consuming one tiny workspace lib through package export conditions
 * scripted checks for production build, plain dev, and bundled dev
 * real browser verification for dev via Playwright
 
@@ -43,13 +54,15 @@ The point is to separate three questions cleanly:
 ```sh
 npm install
 npm run repro
+npm run repro:package-conditions
 ```
 
-That runs the full matrix:
+That gives you both experiment families:
 
-* production build
-* plain dev
-* bundled dev via `vite --experimentalBundle`
+* `npm run repro`
+  runs the public-surface matrix across build, plain dev, and bundled dev
+* `npm run repro:package-conditions`
+  proves the package-boundary setup across Node, build, plain dev, and bundled dev
 
 If you only want the main failing case:
 
@@ -57,6 +70,15 @@ If you only want the main failing case:
 npm run repro:case:build
 npm run repro:case:dev
 npm run repro:case:bundled-dev
+```
+
+If you only want the package-conditions proof:
+
+```sh
+npm run repro:package-conditions:node
+npm run repro:package-conditions:build
+npm run repro:package-conditions:dev
+npm run repro:package-conditions:bundled-dev
 ```
 
 ## Concepts
@@ -97,6 +119,32 @@ That distinction matters because this repo is testing whether Vite can eliminate
 | `barrel-node-builtin` | flat barrel | `node:fs` | pass | fail | fail |
 | `runtime-object-node-builtin` | runtime object aggregate | `node:fs` | fail | fail | fail |
 
+## Package Export Conditions
+
+This repo also contains a real package-boundary experiment:
+
+* app: [`apps/package-conditions-app`](./apps/package-conditions-app)
+* lib: [`packages/conditional-surface-lib`](./packages/conditional-surface-lib)
+
+The library exposes two subpaths:
+
+* `@proof/conditional-surface-lib/runtime`
+* `@proof/conditional-surface-lib/namespace`
+
+Those subpaths use package export conditions to route:
+
+* browser consumers to `*.browser.js`
+* Node consumers to `*.node.js`
+
+This proof passes in all four modes:
+
+| Check | Result |
+| --- | --- |
+| Node import | `node-runtime node-namespace ok` |
+| Vite build | pass, no Node tokens in emitted bundle |
+| Plain dev | pass, renders `browser-runtime browser-namespace ok` |
+| Bundled dev | pass, renders `browser-runtime browser-namespace ok` |
+
 ## Usage
 
 Run the whole matrix:
@@ -121,11 +169,24 @@ npm run repro:case:dev
 npm run repro:case:bundled-dev
 ```
 
+Run the package-conditions proof family:
+
+```sh
+npm run repro:package-conditions
+```
+
 Open the default failing case in a manual server:
 
 ```sh
 npm run serve
 npm run serve:bundled
+```
+
+Open the package-conditions app in a manual server:
+
+```sh
+npm run serve:package-conditions
+npm run serve:package-conditions:bundled
 ```
 
 ## Results
@@ -137,10 +198,15 @@ Current takeaways:
 * Browser-safe unused branches are fine in both plain dev and bundled dev.
 * An unused branch that imports `node:fs` still breaks both plain dev and bundled dev.
 * Runtime object aggregation is a separate app-surface bug because it leaks the Node branch into production build output too.
+* Package export conditions on a real library package do avoid that seam in this repo.
 
 So the important seam is:
 
 * bundled dev still does not match production build when an otherwise-unused pure-ESM branch imports a browser-incompatible Node builtin
+
+And the important positive result is:
+
+* package export conditions route the same subpaths to browser files in Vite and Node files in plain Node, with build, plain dev, and bundled dev all passing
 
 ## Upstream Context
 
@@ -192,6 +258,10 @@ Vite's default native-ESM dev server mode.
 #### public surface
 
 The API shape that the browser consumer imports.
+
+#### package export conditions
+
+Package `exports` rules that route the same subpath to different files depending on the consumer conditions, such as browser versus Node.
 
 #### runtime object aggregate
 

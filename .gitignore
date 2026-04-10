@@ -1,4 +1,5 @@
 node_modules/
 cases/*/dist/
+apps/*/dist/
 dist/
 .DS_Store

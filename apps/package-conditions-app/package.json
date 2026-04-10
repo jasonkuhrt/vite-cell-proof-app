@@ -1,0 +1,8 @@
+{
+  "name": "@proof/package-conditions-app",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@proof/conditional-surface-lib": "1.0.0"
+  }
+}

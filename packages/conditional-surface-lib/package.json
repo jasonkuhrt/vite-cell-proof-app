@@ -1,0 +1,16 @@
+{
+  "name": "@proof/conditional-surface-lib",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./runtime": {
+      "browser": "./runtime.browser.js",
+      "default": "./runtime.node.js"
+    },
+    "./namespace": {
+      "browser": "./namespace.browser.js",
+      "default": "./namespace.node.js"
+    }
+  }
+}

@@ -1,8 +1,12 @@
 {
-  "name": "vite-cell-proof-app",
+  "name": "research-vite-full-bundle-mode",
   "version": "1.0.0",
   "private": true,
   "description": "Research repo for Vite 8 full-bundle dev behavior across different public module surfaces.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "npm run repro:case:build",
     "dev": "npm run serve",
@@ -14,8 +18,15 @@
     "repro:case:build": "node scripts/build-readable.mjs --proof",
     "repro:case:dev": "node scripts/dev-readable.mjs --expect fail",
     "repro:case:bundled-dev": "node scripts/dev-readable.mjs --bundled --expect fail",
+    "repro:package-conditions": "node scripts/package-conditions-proof.mjs",
+    "repro:package-conditions:node": "node scripts/package-conditions-proof.mjs --mode node",
+    "repro:package-conditions:build": "node scripts/package-conditions-proof.mjs --mode build",
+    "repro:package-conditions:dev": "node scripts/package-conditions-proof.mjs --mode dev",
+    "repro:package-conditions:bundled-dev": "node scripts/package-conditions-proof.mjs --mode bundled-dev",
     "serve": "vite cases/namespace-node-builtin",
-    "serve:bundled": "vite cases/namespace-node-builtin --experimentalBundle"
+    "serve:bundled": "vite cases/namespace-node-builtin --experimentalBundle",
+    "serve:package-conditions": "vite apps/package-conditions-app",
+    "serve:package-conditions:bundled": "vite apps/package-conditions-app --experimentalBundle"
   },
   "keywords": [],
   "author": "Jason Kuhrt <jasonkuhrt@me.com> (https://kuhrt.me/)",
